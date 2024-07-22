@@ -14,6 +14,7 @@ from portage._sets.base import EditablePackageSet
 from portage.versions import cpv_sort_key, _pkg_str
 
 from _emerge.emergelog import emergelog
+from _emerge.search import search
 from _emerge.Package import Package
 from _emerge.UserQuery import UserQuery
 from _emerge.UninstallFailure import UninstallFailure
@@ -206,28 +207,40 @@ def _unmerge_display(
         for x in candidate_catpkgs:
             # cycle through all our candidate deps and determine
             # what will and will not get unmerged
-            try:
-                mymatch = vartree.dbapi.match(x)
-            except portage.exception.AmbiguousPackageName as errpkgs:
-                print(
-                    '\n\n!!! The short ebuild name "'
-                    + x
-                    + '" is ambiguous.  Please specify'
-                )
-                print(
-                    "!!! one of the following fully-qualified "
-                    + "ebuild names instead:\n"
-                )
-                for i in errpkgs[0]:
-                    print("    " + green(i))
-                print()
-                sys.exit(1)
+            mymatch = vartree.dbapi.match(x)
 
             if not mymatch and x[0] not in "<>=~":
                 mymatch = vartree.dep_match(x)
+
+            if not mymatch:
+                pkg = x.replace('null/', '')
+                installed = []
+                s = search(
+                    root_config,
+                    None,
+                    False,
+                    True,
+                    True,
+                    True,
+                    search_index=False,
+                )
+                s.searchkey = r'%^' + pkg + r'$'
+                s.output()
+                portage.writemsg(
+                    '!!! The short ebuild name "'
+                    + pkg
+                    + '" is ambiguous. Please specify\n',
+                    noiselevel=-1,
+                )
+                portage.writemsg(
+                    "!!! one of the above fully-qualified ebuild names instead.\n\n",
+                    noiselevel=-1,
+                )
+                sys.exit(1)
+
             if not mymatch:
                 portage.writemsg(
-                    f"\n--- Couldn't find '{x.replace('null/', '')}' to {unmerge_action}.\n",
+                    f"\n--- Couldn't find '{pkg}' to {unmerge_action}.\n",
                     noiselevel=-1,
                 )
                 continue
